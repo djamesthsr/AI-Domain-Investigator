@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Case File #002 — AI Domain Investigator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0E1726;
+    --ink2:#101d33;
+    --panel:#16223A;
+    --panel-hi:#1D2C4A;
+    --paper:#F3ECD9;
+    --paper-dim:#e9e0c9;
+    --amber:#F2A93B;
+    --amber-dim:#c98a26;
+    --teal:#3FA9A0;
+    --alert:#E15B4D;
+    --success:#4FA672;
+    --ink-light:#93A5C6;
+    --line:#2A3B5C;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;}
+  ::selection{background:var(--amber);color:var(--ink);}
+
+  /* ---------- App shell ---------- */
+  #app{display:flex;flex-direction:column;min-height:100vh;}
+
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 22px;
+    background:linear-gradient(90deg,var(--ink2),var(--ink) 70%);
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:50;
+    flex-wrap:wrap;gap:10px;
+  }
+  .case-id{
+    display:flex;align-items:center;gap:12px;
+  }
+  .case-id .stripe{
+    width:34px;height:34px;border-radius:8px;
+    background:repeating-linear-gradient(45deg,var(--amber),var(--amber) 6px,var(--ink) 6px,var(--ink) 12px);
+    flex-shrink:0;
+    box-shadow:0 0 0 1px var(--line);
+  }
+  .case-id .title{line-height:1.15;}
+  .case-id .title small{
+    display:block;color:var(--ink-light);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  }
+  .case-id .title strong{font-size:17px;font-weight:700;}
+
+  .status-cluster{display:flex;align-items:center;gap:14px;}
+  .xp-pill{
+    display:flex;align-items:center;gap:8px;
+    background:var(--panel);border:1px solid var(--line);
+    padding:7px 14px;border-radius:999px;font-size:13px;
+  }
+  .xp-pill .dot{width:8px;height:8px;border-radius:50%;background:var(--amber);}
+  .badge-pill{
+    display:flex;align-items:center;gap:8px;
+    padding:7px 14px;border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    font-size:13px;color:var(--ink-light);
+  }
+  .badge-pill.earned{color:var(--ink);background:var(--amber);border-color:var(--amber-dim);font-weight:600;}
+
+  .layout{display:flex;flex:1;min-height:0;}
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:250px;flex-shrink:0;
+    background:var(--ink2);
+    border-right:1px solid var(--line);
+    padding:18px 12px;
+    overflow-y:auto;
+  }
+  .sidebar .flow-label{
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-light);
+    padding:0 10px 10px;
+  }
+  .nav-item{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 10px;border-radius:10px;
+    color:var(--ink-light);
+    margin-bottom:4px;
+    border:1px solid transparent;
+    transition:background .15s ease, color .15s ease;
+    position:relative;
+  }
+  .nav-item .num{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    width:28px;height:28px;border-radius:7px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel);flex-shrink:0;border:1px solid var(--line);
+  }
+  .nav-item .label{font-size:13.5px;font-weight:500;flex:1;line-height:1.25;}
+  .nav-item .mark{font-size:13px;flex-shrink:0;}
+  .nav-item.unlocked{cursor:pointer;color:var(--paper);}
+  .nav-item.unlocked:hover{background:var(--panel-hi);}
+  .nav-item.active{background:var(--panel-hi);border-color:var(--line);color:var(--paper);}
+  .nav-item.active .num{background:var(--amber);color:var(--ink);border-color:var(--amber-dim);}
+  .nav-item.done .num{background:var(--success);color:var(--ink);border-color:var(--success);}
+  .nav-item.locked{opacity:.45;cursor:not-allowed;}
+
+  /* ---------- Stage ---------- */
+  .stage-wrap{flex:1;overflow-y:auto;padding:32px 28px 80px;}
+  .stage{max-width:920px;margin:0 auto;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.12em;
+    color:var(--teal);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow .line{height:1px;flex:1;background:var(--line);}
+  .stage h1{font-size:30px;margin:0 0 14px;font-weight:700;}
+  .lede{color:var(--ink-light);font-size:15.5px;line-height:1.6;max-width:640px;margin-bottom:26px;}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px;margin-bottom:18px;
+  }
+  .paper-card{
+    background:var(--paper);color:#26201a;border-radius:var(--radius);
+    padding:22px 24px;margin-bottom:18px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);
+  }
+  .paper-card h3{margin-top:0;color:#26201a;}
+  .paper-card .stamp{
+    float:right;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--alert);
+    border:2px solid var(--alert);padding:4px 8px;border-radius:6px;transform:rotate(4deg);
+    letter-spacing:.08em;
+  }
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--amber);color:#1a1204;border:none;
+    padding:12px 22px;border-radius:10px;font-weight:600;font-size:14.5px;
+    transition:transform .1s ease, box-shadow .15s ease;
+  }
+  .btn:hover{box-shadow:0 6px 18px rgba(242,169,59,.25);transform:translateY(-1px);}
+  .btn:disabled{background:var(--line);color:var(--ink-light);cursor:not-allowed;box-shadow:none;transform:none;}
+  .btn.secondary{background:transparent;border:1px solid var(--line);color:var(--paper);}
+  .btn.secondary:hover{border-color:var(--teal);box-shadow:none;transform:none;}
+  .btn.small{padding:8px 14px;font-size:13px;}
+
+  .actions{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;align-items:center;}
+  .req-note{font-size:12.5px;color:var(--ink-light);font-family:'IBM Plex Mono',monospace;}
+
+  /* objective list */
+  .obj-list{list-style:none;margin:0;padding:0;}
+  .obj-list li{
+    display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:flex-start;
+  }
+  .obj-list li:last-child{border-bottom:none;}
+  .obj-list .ic{color:var(--teal);font-size:18px;flex-shrink:0;}
+
+  /* smart city board */
+  .board-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:8px;}
+  .chip-pool{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 22px;}
+  .chip{
+    border:1px solid var(--teal);color:var(--teal);background:transparent;
+    padding:9px 16px;border-radius:999px;font-size:13.5px;font-weight:600;
+    transition:all .12s ease;
+  }
+  .chip.selected{background:var(--teal);color:var(--ink);box-shadow:0 0 0 3px rgba(63,169,160,.25);}
+  .chip:disabled{opacity:.35;cursor:default;}
+
+  .system-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .system-card .icon{font-size:26px;}
+  .system-card .name{font-weight:600;font-size:14.5px;}
+  .slot{
+    border:2px dashed var(--line);border-radius:8px;
+    padding:10px 12px;font-size:13px;color:var(--ink-light);
+    min-height:20px;text-align:center;transition:all .12s ease;
+  }
+  .slot.correct{border-style:solid;border-color:var(--success);background:rgba(79,166,114,.12);color:var(--paper);}
+  .slot.incorrect{border-style:solid;border-color:var(--alert);background:rgba(225,91,77,.12);color:var(--paper);}
+  .feedback-line{font-size:12.5px;line-height:1.45;color:var(--ink-light);}
+  .feedback-line.show{color:var(--paper);}
+
+  /* MCQ */
+  .q-block{margin-bottom:24px;}
+  .q-block .q-title{font-weight:600;margin-bottom:10px;font-size:15px;}
+  .opt-list{display:flex;flex-direction:column;gap:8px;}
+  .opt{
+    display:flex;align-items:center;gap:10px;
+    border:1px solid var(--line);border-radius:9px;padding:11px 14px;
+    background:var(--panel);font-size:14px;transition:all .12s ease;
+  }
+  .opt:hover{border-color:var(--teal);}
+  .opt.picked{border-color:var(--teal);background:var(--panel-hi);}
+  .opt.correct{border-color:var(--success);background:rgba(79,166,114,.14);}
+  .opt.incorrect{border-color:var(--alert);background:rgba(225,91,77,.14);}
+  .opt input{accent-color:var(--teal);}
+
+  .score-banner{
+    padding:14px 18px;border-radius:10px;font-weight:600;font-size:14.5px;margin-top:6px;
+  }
+  .score-banner.pass{background:rgba(79,166,114,.15);color:var(--success);border:1px solid var(--success);}
+  .score-banner.fail{background:rgba(225,91,77,.15);color:var(--alert);border:1px solid var(--alert);}
+
+  /* video lab */
+  .screen-mock{
+    background:#000;border-radius:12px;border:6px solid var(--panel-hi);
+    aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;
+    margin-bottom:16px;position:relative;overflow:hidden;
+  }
+  .screen-mock .glow{
+    position:absolute;inset:0;background:radial-gradient(circle at 50% 40%,rgba(63,169,160,.18),transparent 60%);
+  }
+  .screen-mock .play-ic{font-size:44px;color:var(--teal);z-index:1;}
+  .seg-tag{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-light);
+    display:flex;justify-content:space-between;margin-bottom:8px;
+  }
+  .seg-dots{display:flex;gap:6px;margin-bottom:18px;}
+  .seg-dots .d{width:26px;height:5px;border-radius:3px;background:var(--line);}
+  .seg-dots .d.active{background:var(--amber);}
+  .seg-dots .d.done{background:var(--success);}
+
+  /* branching */
+  .client-card{border-left:3px solid var(--amber);padding-left:16px;}
+  .choice-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+  .choice-btn{
+    border:1px solid var(--line);background:var(--panel-hi);color:var(--paper);
+    padding:10px 18px;border-radius:9px;font-size:14px;font-weight:600;
+  }
+  .choice-btn:hover{border-color:var(--teal);}
+  .choice-btn.correct{background:rgba(79,166,114,.18);border-color:var(--success);}
+  .choice-btn.incorrect{background:rgba(225,91,77,.18);border-color:var(--alert);}
+  .choice-btn:disabled{cursor:default;}
+  .feedback-box{margin-top:14px;padding:12px 16px;border-radius:9px;font-size:13.5px;line-height:1.5;}
+  .feedback-box.correct{background:rgba(79,166,114,.12);border:1px solid var(--success);}
+  .feedback-box.incorrect{background:rgba(225,91,77,.12);border:1px solid var(--alert);}
+
+  .report-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:10px;}
+  .report-stat{background:var(--panel-hi);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;}
+  .report-stat .val{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:var(--amber);}
+  .report-stat .lab{font-size:12px;color:var(--ink-light);margin-top:4px;}
+
+  /* memory game */
+  .memory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin:10px 0 20px;}
+  .mcard{
+    aspect-ratio:3/4;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel-hi);display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:8px;font-size:12.5px;font-weight:600;
+    position:relative;overflow:hidden;
+  }
+  .mcard .face-back{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(135deg,var(--panel-hi),var(--panel-hi) 8px,var(--panel) 8px,var(--panel) 16px);
+    font-size:22px;color:var(--teal);
+  }
+  .mcard.flipped .face-back{display:none;}
+  .mcard.matched{border-color:var(--success);background:rgba(79,166,114,.15);}
+  .mcard.matched .face-back{display:none;}
+  .mcard:disabled{cursor:default;}
+
+  /* reflection */
+  textarea{
+    width:100%;background:var(--panel-hi);border:1px solid var(--line);border-radius:9px;
+    color:var(--paper);padding:12px 14px;font-family:inherit;font-size:14px;min-height:80px;resize:vertical;
+  }
+  textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
+
+  .checklist{list-style:none;margin:0;padding:0;}
+  .checklist li{
+    display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13.5px;
+  }
+  .checklist li:last-child{border-bottom:none;}
+  .checklist .ok{color:var(--success);font-weight:600;}
+
+  .badge-reveal{
+    text-align:center;padding:36px 20px;
+  }
+  .badge-reveal .medal{
+    width:96px;height:96px;border-radius:50%;margin:0 auto 16px;
+    background:conic-gradient(from 90deg,var(--amber),#fff2d6,var(--amber));
+    display:flex;align-items:center;justify-content:center;font-size:40px;
+    box-shadow:0 10px 30px rgba(242,169,59,.35);
+  }
+
+  @media (max-width:820px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%;display:flex;overflow-x:auto;padding:10px;gap:6px;}
+    .sidebar .flow-label{display:none;}
+    .nav-item{flex-direction:column;min-width:96px;text-align:center;}
+    .nav-item .label{font-size:11px;}
+  }
+  :focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="case-id">
+      <div class="stripe"></div>
+      <div class="title">
+        <small>AI Innovation Council · Case File 002</small>
+        <strong>AI Domain Investigator</strong>
+      </div>
+    </div>
+    <div class="status-cluster">
+      <div class="xp-pill mono"><span class="dot"></span><span id="xpDisplay">0 XP</span></div>
+      <div class="badge-pill mono" id="badgePill">🔍 Badge locked</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar" id="sidebar" aria-label="Mission flow"></nav>
+    <main class="stage-wrap"><div class="stage" id="stage"></div></main>
+  </div>
+</div>
+
+<script>
+/* ============================= DATA ============================= */
+const SCREENS = [
+  {id:1, code:'CF-01', label:'Mission Brief'},
+  {id:2, code:'CF-02', label:'Mission Objective'},
+  {id:3, code:'CF-03', label:'Smart City Investigation'},
+  {id:4, code:'CF-04', label:'Knowledge Check'},
+  {id:5, code:'CF-05', label:'Inside the AI Lab'},
+  {id:6, code:'CF-06', label:'AI Consultant Branching'},
+  {id:7, code:'CF-07', label:'Memory Challenge'},
+  {id:8, code:'CF-08', label:'Reflection & Badge'},
+];
+
+const HOTSPOTS = [
+  {id:'face', icon:'🚪', name:'Face Unlock Gate', domain:'Computer Vision', fb:'Computer Vision analyzes images and facial features to identify people.'},
+  {id:'voice', icon:'🎙️', name:'Voice Assistant', domain:'NLP', fb:'NLP allows AI to understand and respond to spoken language.'},
+  {id:'netflix', icon:'📺', name:'Netflix Recommendation Screen', domain:'Data AI', fb:'Data AI identifies viewing patterns to recommend content.'},
+  {id:'art', icon:'🖼️', name:'AI Art Gallery', domain:'Generative AI', fb:'Generative AI creates new images instead of recognizing existing ones.'},
+  {id:'guide', icon:'🗺️', name:'AI Tourist Guide', domain:'Multimodal AI', fb:'Multimodal AI combines images, speech, and text to answer questions.'},
+];
+const DOMAIN_CHIPS = ['Computer Vision','NLP','Data AI','Generative AI','Multimodal AI'];
+
+const KC_QUESTIONS = [
+  {q:'Which AI domain understands pictures?', opts:['Computer Vision','NLP','Data AI','Generative AI'], correct:'Computer Vision'},
+  {q:'Which AI domain creates new images?', opts:['Computer Vision','Generative AI','NLP','Data AI'], correct:'Generative AI'},
+  {q:'Which AI domain processes spoken language?', opts:['NLP','Computer Vision','Data AI','Multimodal AI'], correct:'NLP'},
+  {q:'Can one AI system belong to multiple domains?', opts:['True','False'], correct:'True'},
+];
+
+const VIDEO_SEGMENTS = [
+  {seg:'Quick Draw', demo:'AI recognizes hand-drawn sketches in real time.', q:'Does Quick Draw understand images or text?', opts:['Images','Text'], correct:'Images'},
+  {seg:'ChatGPT', demo:'A conversational AI answers open-ended questions.', q:'Did ChatGPT create or recognize information?', opts:['Creates text','Recognizes text'], correct:'Creates text'},
+  {seg:'Spotify', demo:'A recommendation engine suggests songs.', q:'Is Spotify using previous listening behaviour?', opts:['Yes','No'], correct:'Yes'},
+  {seg:'Image Generator', demo:'AI produces original artwork from a text prompt.', q:'Which AI generated a completely new image?', opts:['Quick Draw','Image Generator','Spotify'], correct:'Image Generator'},
+  {seg:'Gemini Vision', demo:'AI describes an uploaded photo in natural language.', q:'Can Gemini work with both text and images?', opts:['Yes','No'], correct:'Yes'},
+];
+
+const BRANCH_ITEMS = [
+  {client:'A school wants automatic attendance.', opts:['Computer Vision','NLP','Data AI'], correct:'Computer Vision',
+   ok:'Excellent! Computer Vision analyzes faces to automate attendance.', no:'Close! That domain doesn\'t analyze faces the way this task needs — this is an image-recognition job.'},
+  {client:'A hospital wants a voice-based patient assistant.', opts:['Computer Vision','NLP','Data AI'], correct:'NLP',
+   ok:'Excellent! NLP lets the assistant understand and respond to spoken patient requests.', no:'Close! NLP processes language, but this task requires analyzing images.'},
+  {client:'A shopping app wants product recommendations.', opts:['Computer Vision','NLP','Data AI'], correct:'Data AI',
+   ok:'Excellent! Data AI spots patterns in past behaviour to recommend products.', no:'Close! This task depends on patterns in past data, not images or language.'},
+  {client:'An artist wants AI to create posters.', opts:['Computer Vision','Data AI','Generative AI'], correct:'Generative AI',
+   ok:'Excellent! Generative AI produces brand-new artwork instead of just recognizing it.', no:'Close! This client needs something created from scratch, not identified.'},
+  {client:'A teacher uploads an image and asks for a lesson summary.', opts:['Computer Vision','NLP','Multimodal AI'], correct:'Multimodal AI',
+   ok:'Excellent! Multimodal AI combines image understanding with language to build the summary.', no:'Close! This task needs more than one input type working together.'},
+];
+
+const MEMORY_PAIRS = [
+  {a:'Face Unlock', b:'Computer Vision'},
+  {a:'Google Translate', b:'NLP'},
+  {a:'Spotify Recommendations', b:'Data AI'},
+  {a:'AI Image Generator', b:'Generative AI'},
+  {a:'Gemini Vision', b:'Multimodal AI'},
+];
+
+const REFLECTION_QS = [
+  'Which AI domain surprised you the most?',
+  'Which AI domain do you use most often?',
+  'Which AI domain do you want to learn more about?',
+];
+
+/* ============================= STATE ============================= */
+const state = {
+  current: 1,
+  completed: {1:false,2:false,3:false,4:false,5:false,6:false,7:false,8:false},
+  xp: 0,
+  badgeEarned: false,
+  selectedChip: null,
+  hotspotAnswers: {},        // id -> domain placed
+  hotspotCorrectCount: 0,
+  kcAnswers: {},             // idx -> chosen
+  kcSubmitted: false,
+  kcPass: false,
+  kcPerfectFirstTry: false,
+  kcAttempted: false,
+  videoIdx: 0,
+  videoAnswers: {},
+  branchIdx: 0,
+  branchCorrectCount: 0,
+  branchAnswers: [],
+  memoryDeck: [],
+  memoryFlipped: [],
+  memoryMatched: [],
+  reflectionAnswers: {0:'',1:'',2:''},
+};
+
+function unlocked(n){
+  if(n===1) return true;
+  return state.completed[n-1];
+}
+function addXP(n){ state.xp += n; render(); }
+
+/* ============================= RENDER SHELL ============================= */
+function renderSidebar(){
+  const nav = document.getElementById('sidebar');
+  nav.innerHTML = '<div class="flow-label">Mission Flow</div>' + SCREENS.map(s=>{
+    const isUnlocked = unlocked(s.id);
+    const isDone = state.completed[s.id];
+    const isActive = state.current===s.id;
+    let cls = 'nav-item';
+    if(isActive) cls+=' active';
+    if(isDone) cls+=' done';
+    cls += isUnlocked ? ' unlocked' : ' locked';
+    const mark = isDone ? '✅' : (isUnlocked ? '' : '🔒');
+    return `<div class="${cls}" data-screen="${s.id}" role="button" tabindex="0" aria-disabled="${!isUnlocked}">
+      <div class="num mono">${String(s.id).padStart(2,'0')}</div>
+      <div class="label">${s.label}</div>
+      <div class="mark">${mark}</div>
+    </div>`;
+  }).join('');
+  nav.querySelectorAll('.nav-item.unlocked').forEach(el=>{
+    el.addEventListener('click',()=>{ state.current = parseInt(el.dataset.screen); render(); });
+    el.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ state.current = parseInt(el.dataset.screen); render(); }});
+  });
+}
+
+function renderTopbar(){
+  document.getElementById('xpDisplay').textContent = state.xp + ' XP';
+  const pill = document.getElementById('badgePill');
+  if(state.badgeEarned){ pill.textContent='🔍 AI Domain Investigator — earned'; pill.classList.add('earned'); }
+  else { pill.textContent='🔍 Badge locked'; pill.classList.remove('earned'); }
+}
+
+function goTo(n){ if(unlocked(n)){ state.current=n; render(); window.scrollTo({top:0}); } }
+function complete(n){ state.completed[n]=true; }
+
+/* ============================= SCREEN BUILDERS ============================= */
+function screen1(){
+  return `
+  <div class="eyebrow">CF-01 · Mission Brief<span class="line"></span></div>
+  <h1>A message from the AI Innovation Council</h1>
+  <div class="paper-card">
+    <span class="stamp">CLASSIFIED</span>
+    <h3>Case File #002 — AI Domains Investigation</h3>
+    <p>Agent, you did excellent work in Module 1 uncovering what AI is and where it shows up in daily life. The Council now needs you on a deeper mission.</p>
+    <p>A new smart city has gone fully AI-powered — traffic, security, healthcare, shopping, and entertainment are all running on artificial intelligence. But every system uses a <em>different kind</em> of AI, and the Council needs an investigator who can tell them apart.</p>
+    <p>Your mission: identify and differentiate five AI domains — <strong>Computer Vision, Natural Language Processing, Data AI, Generative AI,</strong> and <strong>Multimodal AI</strong> — by observing them in action, not by memorizing definitions.</p>
+    <p>Report to the Smart City Investigation the moment you're ready.</p>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c1">Accept the case →</button>
+    <span class="req-note">Completion rule: viewed</span>
+  </div>`;
+}
+
+function screen2(){
+  const objs = [
+    ['🕵️','Investigate real AI systems across a smart city and classify each one by domain.'],
+    ['🎬','Watch live AI demonstrations and predict how each one processes information.'],
+    ['💼','Act as an AI consultant, recommending the right technology for real client needs.'],
+    ['🧠','Lock in your learning with a matching challenge and a short reflection.'],
+  ];
+  return `
+  <div class="eyebrow">CF-02 · Mission Objective<span class="line"></span></div>
+  <h1>What you're being asked to do</h1>
+  <p class="lede">Four assignments stand between you and the AI Domain Investigator badge. Each one builds on the last.</p>
+  <div class="card">
+    <ul class="obj-list">
+      ${objs.map(o=>`<li><span class="ic">${o[0]}</span><span>${o[1]}</span></li>`).join('')}
+    </ul>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c2">Begin investigation →</button>
+    <span class="req-note">Completion rule: viewed</span>
+  </div>`;
+}
+
+function screen3(){
+  const allDone = HOTSPOTS.every(h=>state.hotspotAnswers[h.id]);
+  const correctCount = HOTSPOTS.filter(h=>state.hotspotAnswers[h.id]===h.domain).length;
+  const cards = HOTSPOTS.map(h=>{
+    const placed = state.hotspotAnswers[h.id];
+    let slotClass='slot', slotText='Drop the AI domain here';
+    let fbClass='feedback-line', fbText='';
+    if(placed){
+      const isCorrect = placed===h.domain;
+      slotClass += isCorrect ? ' correct' : ' incorrect';
+      slotText = placed;
+      fbClass += ' show';
+      fbText = isCorrect ? h.fb : `Not quite — ${placed} isn't the right fit here. Try again.`;
+    }
+    return `<div class="system-card">
+      <div class="icon">${h.icon}</div>
+      <div class="name">${h.name}</div>
+      <div class="${slotClass}" data-target="${h.id}">${slotText}</div>
+      <div class="${fbClass}">${fbText}</div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="eyebrow">CF-03 · Smart City Investigation<span class="line"></span></div>
+  <h1>AI Smart City Investigation</h1>
+  <p class="lede">Somewhere in this city, five systems are quietly running on five different kinds of AI. Tap a domain tag below, then tap the system it belongs to.</p>
+  <div class="card">
+    <div class="chip-pool" id="chipPool">
+      ${DOMAIN_CHIPS.map(d=>`<button class="chip" data-domain="${d}">${d}</button>`).join('')}
+    </div>
+    <div class="board-grid" id="boardGrid">${cards}</div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c3" ${(!allDone||correctCount<5)?'disabled':''}>Close the investigation →</button>
+    <span class="req-note">${correctCount}/5 correctly classified — completion rule: all hotspots correct</span>
+  </div>`;
+}
+
+function screen4(){
+  const answered = KC_QUESTIONS.map((q,i)=>state.kcAnswers[i]);
+  const allAnswered = answered.every(a=>a!==undefined);
+  const qBlocks = KC_QUESTIONS.map((q,i)=>{
+    const chosen = state.kcAnswers[i];
+    const opts = q.opts.map(o=>{
+      let cls='opt';
+      if(state.kcSubmitted){
+        if(o===q.correct) cls+=' correct';
+        else if(o===chosen) cls+=' incorrect';
+      } else if(o===chosen) cls+=' picked';
+      return `<label class="${cls}"><input type="radio" name="kc${i}" value="${o}" ${chosen===o?'checked':''} ${state.kcSubmitted?'disabled':''}> ${o}</label>`;
+    }).join('');
+    return `<div class="q-block"><div class="q-title">${i+1}. ${q.q}</div><div class="opt-list" data-q="${i}">${opts}</div></div>`;
+  }).join('');
+
+  let banner = '';
+  if(state.kcSubmitted){
+    const scorePct = Math.round(100*KC_QUESTIONS.filter((q,i)=>state.kcAnswers[i]===q.correct).length/KC_QUESTIONS.length);
+    banner = `<div class="score-banner ${state.kcPass?'pass':'fail'}">Score: ${scorePct}% — ${state.kcPass?'Passed! 80% threshold cleared.':'Below 80% threshold — review and try again.'}</div>`;
+  }
+
+  return `
+  <div class="eyebrow">CF-04 · Knowledge Check<span class="line"></span></div>
+  <h1>Field Test</h1>
+  <p class="lede">Answer all four questions. You'll need 80% or higher to move on.</p>
+  <div class="card">
+    ${qBlocks}
+    ${banner}
+    <div class="actions">
+      ${!state.kcSubmitted ? `<button class="btn" id="kcSubmit" ${allAnswered?'':'disabled'}>Submit answers</button>` :
+        (state.kcPass ? '' : `<button class="btn secondary" id="kcRetry">Try again</button>`)}
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c4" ${state.kcPass?'':'disabled'}>Continue to the AI Lab →</button>
+    <span class="req-note">Completion rule: 80% score</span>
+  </div>`;
+}
+
+function screen5(){
+  const idx = state.videoIdx;
+  const seg = VIDEO_SEGMENTS[idx];
+  const answered = state.videoAnswers[idx];
+  const dots = VIDEO_SEGMENTS.map((s,i)=>{
+    let cls='d';
+    if(i<idx || (i===idx && answered)) cls+=' done';
+    else if(i===idx) cls+=' active';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  const opts = seg.opts.map(o=>{
+    let cls='opt';
+    if(answered){
+      if(o===seg.correct) cls+=' correct';
+      else if(o===answered) cls+=' incorrect';
+    }
+    return `<label class="${cls}"><input type="radio" name="vq" value="${o}" ${answered?'disabled':''}> ${o}</label>`;
+  }).join('');
+
+  const allWatched = Object.keys(state.videoAnswers).length===VIDEO_SEGMENTS.length;
+
+  return `
+  <div class="eyebrow">CF-05 · Inside the AI Lab<span class="line"></span></div>
+  <h1>Interactive Video: Inside the AI Lab</h1>
+  <p class="lede">Five demonstrations, five predictions. Read each one closely — you'll be asked to predict how each AI is processing information.</p>
+  <div class="card">
+    <div class="seg-tag"><span>SEGMENT ${idx+1} / ${VIDEO_SEGMENTS.length}</span><span>${seg.seg}</span></div>
+    <div class="seg-dots">${dots}</div>
+    <p style="color:var(--paper);font-size:15px;">${seg.demo}</p>
+    <div class="q-block">
+      <div class="q-title">${seg.q}</div>
+      <div class="opt-list" data-vq="1">${opts}</div>
+    </div>
+    <div class="actions">
+      ${!answered ? `<button class="btn" id="vSubmit" disabled>Lock in prediction</button>` :
+        (idx<VIDEO_SEGMENTS.length-1 ? `<button class="btn" id="vNext">Next segment →</button>` : '')}
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c5" ${allWatched?'':'disabled'}>Continue to consulting →</button>
+    <span class="req-note">Completion rule: 100% watched</span>
+  </div>`;
+}
+
+function screen6(){
+  const idx = state.branchIdx;
+  if(idx >= BRANCH_ITEMS.length){
+    const pct = Math.round(100*state.branchCorrectCount/BRANCH_ITEMS.length);
+    return `
+    <div class="eyebrow">CF-06 · AI Consultant Branching<span class="line"></span></div>
+    <h1>Final Performance Report</h1>
+    <div class="card">
+      <div class="report-grid">
+        <div class="report-stat"><div class="val">${pct}%</div><div class="lab">Domain Selection</div></div>
+        <div class="report-stat"><div class="val">${pct>=80?'Excellent':(pct>=60?'Solid':'Developing')}</div><div class="lab">Reasoning</div></div>
+        <div class="report-stat"><div class="val">${state.branchCorrectCount}/5</div><div class="lab">Recommendation Accuracy</div></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="c6">Continue to Memory Challenge →</button>
+      <span class="req-note">Completion rule: all client requests resolved</span>
+    </div>`;
+  }
+  const item = BRANCH_ITEMS[idx];
+  const answered = state.branchAnswers[idx];
+  const choices = item.opts.map(o=>{
+    let cls='choice-btn';
+    if(answered){
+      if(o===item.correct) cls+=' correct';
+      else if(o===answered.choice) cls+=' incorrect';
+    }
+    return `<button class="${cls}" data-choice="${o}" ${answered?'disabled':''}>${o}</button>`;
+  }).join('');
+  let fb='';
+  if(answered){
+    const isCorrect = answered.choice===item.correct;
+    fb = `<div class="feedback-box ${isCorrect?'correct':'incorrect'}">${isCorrect?item.ok:item.no}</div>`;
+  }
+  return `
+  <div class="eyebrow">CF-06 · AI Consultant Branching<span class="line"></span></div>
+  <h1>Become an AI Consultant</h1>
+  <p class="lede">Client request ${idx+1} of ${BRANCH_ITEMS.length}. Recommend the AI domain that solves it.</p>
+  <div class="card client-card">
+    <p style="font-size:16px;font-weight:600;margin-top:0;">"${item.client}"</p>
+    <div class="choice-row">${choices}</div>
+    ${fb}
+    <div class="actions">
+      ${answered ? `<button class="btn" id="bNext">${idx<BRANCH_ITEMS.length-1?'Next client →':'See final report →'}</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function screen7(){
+  if(state.memoryDeck.length===0) initMemory();
+  const cards = state.memoryDeck.map((c,i)=>{
+    const isFlipped = state.memoryFlipped.includes(i);
+    const isMatched = state.memoryMatched.includes(i);
+    let cls='mcard';
+    if(isFlipped) cls+=' flipped';
+    if(isMatched) cls+=' matched';
+    return `<button class="${cls}" data-idx="${i}" ${isMatched?'disabled':''}>
+      <span class="face-back">?</span>
+      <span class="face-front">${c.text}</span>
+    </button>`;
+  }).join('');
+  const allMatched = state.memoryMatched.length === state.memoryDeck.length;
+  return `
+  <div class="eyebrow">CF-07 · Memory Challenge<span class="line"></span></div>
+  <h1>AI Domain Challenge</h1>
+  <p class="lede">Match each AI tool to the domain it belongs to. Flip two cards at a time.</p>
+  <div class="card">
+    <div class="memory-grid">${cards}</div>
+    <p class="req-note">${state.memoryMatched.length/2} of ${MEMORY_PAIRS.length} pairs matched</p>
+  </div>
+  <div class="actions">
+    <button class="btn" id="c7" ${allMatched?'':'disabled'}>Continue to reflection →</button>
+    <span class="req-note">Completion rule: 100% matched</span>
+  </div>`;
+}
+
+function screen8(){
+  if(state.badgeEarned){
+    return `
+    <div class="eyebrow">CF-08 · Reflection & Badge<span class="line"></span></div>
+    <h1>Mission Complete</h1>
+    <div class="card badge-reveal">
+      <div class="medal">🔍</div>
+      <h2 style="margin:0 0 6px;">AI Domain Investigator</h2>
+      <p style="color:var(--ink-light);margin:0;">Badge earned · ${state.xp} XP total</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Mission Completion Dashboard</h3>
+      <ul class="checklist">
+        <li><span>Mission Brief</span><span class="ok">Viewed ✓</span></li>
+        <li><span>Smart City Investigation</span><span class="ok">100% ✓</span></li>
+        <li><span>Knowledge Check</span><span class="ok">≥80% ✓</span></li>
+        <li><span>Interactive Video</span><span class="ok">100% watched ✓</span></li>
+        <li><span>Branching Scenario</span><span class="ok">Completed ✓</span></li>
+        <li><span>Memory Challenge</span><span class="ok">100% ✓</span></li>
+        <li><span>Reflection</span><span class="ok">Submitted ✓</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <p style="margin:0;">Module 3 — AI Models — is now unlocked. Well done, agent.</p>
+    </div>`;
+  }
+  const allFilled = [0,1,2].every(i=>state.reflectionAnswers[i].trim().length>0);
+  return `
+  <div class="eyebrow">CF-08 · Reflection & Badge<span class="line"></span></div>
+  <h1>Close Out the Case</h1>
+  <p class="lede">Before your badge is issued, the Council wants your field notes.</p>
+  <div class="card">
+    ${REFLECTION_QS.map((q,i)=>`
+      <div class="q-block">
+        <div class="q-title">${q}</div>
+        <textarea data-r="${i}" placeholder="Write a sentence or two...">${state.reflectionAnswers[i]}</textarea>
+      </div>`).join('')}
+    <div class="actions">
+      <button class="btn" id="submitReflection" ${allFilled?'':'disabled'}>Submit & claim badge</button>
+      <span class="req-note">Completion rule: required</span>
+    </div>
+  </div>`;
+}
+
+/* ============================= MEMORY GAME LOGIC ============================= */
+function initMemory(){
+  let deck = [];
+  MEMORY_PAIRS.forEach((p,i)=>{
+    deck.push({pair:i, text:p.a});
+    deck.push({pair:i, text:p.b});
+  });
+  // shuffle
+  for(let i=deck.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]]=[deck[j],deck[i]];
+  }
+  state.memoryDeck = deck;
+  state.memoryFlipped = [];
+  state.memoryMatched = [];
+}
+
+/* ============================= EVENT WIRING ============================= */
+function wireScreenEvents(){
+  const n = state.current;
+
+  if(n===1){
+    document.getElementById('c1')?.addEventListener('click',()=>{ complete(1); addXP(0); goTo(2); });
+  }
+  if(n===2){
+    document.getElementById('c2')?.addEventListener('click',()=>{ complete(2); goTo(3); });
+  }
+  if(n===3){
+    document.querySelectorAll('#chipPool .chip').forEach(chip=>{
+      chip.addEventListener('click',()=>{
+        state.selectedChip = chip.dataset.domain;
+        document.querySelectorAll('#chipPool .chip').forEach(c=>c.classList.remove('selected'));
+        chip.classList.add('selected');
+      });
+    });
+    document.querySelectorAll('#boardGrid .slot').forEach(slot=>{
+      slot.addEventListener('click',()=>{
+        if(!state.selectedChip) return;
+        state.hotspotAnswers[slot.dataset.target] = state.selectedChip;
+        state.selectedChip = null;
+        render();
+      });
+    });
+    document.getElementById('c3')?.addEventListener('click',()=>{
+      complete(3); addXP(0); goTo(4);
+    });
+  }
+  if(n===4){
+    document.querySelectorAll('.opt-list[data-q]').forEach(list=>{
+      const qi = list.dataset.q;
+      list.querySelectorAll('input').forEach(inp=>{
+        inp.addEventListener('change',()=>{ state.kcAnswers[qi]=inp.value; render(); });
+      });
+    });
+    document.getElementById('kcSubmit')?.addEventListener('click',()=>{
+      state.kcSubmitted = true;
+      const correctCount = KC_QUESTIONS.filter((q,i)=>state.kcAnswers[i]===q.correct).length;
+      const pct = correctCount/KC_QUESTIONS.length;
+      state.kcPass = pct>=0.8;
+      if(!state.kcAttempted){
+        state.kcAttempted = true;
+        if(pct===1){ state.kcPerfectFirstTry = true; addXP(20); }
+      }
+      render();
+    });
+    document.getElementById('kcRetry')?.addEventListener('click',()=>{
+      state.kcSubmitted=false; state.kcAnswers={}; render();
+    });
+    document.getElementById('c4')?.addEventListener('click',()=>{ complete(4); goTo(5); });
+  }
+  if(n===5){
+    document.querySelectorAll('.opt-list[data-vq] input').forEach(inp=>{
+      inp.addEventListener('change',()=>{
+        document.getElementById('vSubmit').disabled = false;
+        document.getElementById('vSubmit').dataset.val = inp.value;
+      });
+    });
+    document.getElementById('vSubmit')?.addEventListener('click',(e)=>{
+      const val = e.target.dataset.val;
+      state.videoAnswers[state.videoIdx] = val;
+      render();
+    });
+    document.getElementById('vNext')?.addEventListener('click',()=>{
+      state.videoIdx++; render();
+    });
+    document.getElementById('c5')?.addEventListener('click',()=>{ complete(5); goTo(6); });
+  }
+  if(n===6){
+    document.querySelectorAll('.choice-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        const idx = state.branchIdx;
+        const item = BRANCH_ITEMS[idx];
+        const choice = btn.dataset.choice;
+        const isCorrect = choice===item.correct;
+        state.branchAnswers[idx] = {choice, isCorrect};
+        if(isCorrect) state.branchCorrectCount++;
+        render();
+      });
+    });
+    document.getElementById('bNext')?.addEventListener('click',()=>{
+      state.branchIdx++;
+      if(state.branchIdx>=BRANCH_ITEMS.length && state.branchCorrectCount===BRANCH_ITEMS.length){
+        addXP(20);
+      }
+      render();
+    });
+    document.getElementById('c6')?.addEventListener('click',()=>{ complete(6); goTo(7); });
+  }
+  if(n===7){
+    document.querySelectorAll('.mcard').forEach(card=>{
+      card.addEventListener('click',()=>{
+        const idx = parseInt(card.dataset.idx);
+        if(state.memoryFlipped.includes(idx) || state.memoryMatched.includes(idx)) return;
+        if(state.memoryFlipped.length===2) return;
+        state.memoryFlipped.push(idx);
+        render();
+        if(state.memoryFlipped.length===2){
+          const [a,b] = state.memoryFlipped;
+          const cardA = state.memoryDeck[a], cardB = state.memoryDeck[b];
+          if(cardA.pair===cardB.pair){
+            setTimeout(()=>{
+              state.memoryMatched.push(a,b);
+              state.memoryFlipped=[];
+              render();
+            },500);
+          } else {
+            setTimeout(()=>{ state.memoryFlipped=[]; render(); },800);
+          }
+        }
+      });
+    });
+    document.getElementById('c7')?.addEventListener('click',()=>{ complete(7); goTo(8); });
+  }
+  if(n===8){
+    document.querySelectorAll('textarea[data-r]').forEach(ta=>{
+      ta.addEventListener('input',()=>{
+        state.reflectionAnswers[ta.dataset.r]=ta.value;
+        const allFilled = [0,1,2].every(i=>state.reflectionAnswers[i].trim().length>0);
+        const btn = document.getElementById('submitReflection');
+        if(btn) btn.disabled = !allFilled;
+      });
+    });
+    document.getElementById('submitReflection')?.addEventListener('click',()=>{
+      complete(8); state.badgeEarned = true; addXP(60);
+    });
+  }
+}
+
+/* ============================= MAIN RENDER ============================= */
+function render(){
+  renderSidebar();
+  renderTopbar();
+  const builders = {1:screen1,2:screen2,3:screen3,4:screen4,5:screen5,6:screen6,7:screen7,8:screen8};
+  document.getElementById('stage').innerHTML = builders[state.current]();
+  wireScreenEvents();
+}
+
+render();
+</script>
+</body>
+</html>
